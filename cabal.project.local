@@ -1,8 +1,8 @@
 ignore-project: False
 
 package *
-  ghc-location: /home/nr/.ghc-snapshots/9.2.2/stage1/bin/ghc
+  ghc-location: /home/nr/.ghc-snapshots/current/stage1/bin/ghc
 
 program-locations
-  ghc-location: /home/nr/.ghc-snapshots/9.2.2/stage1/bin/ghc
-  haddock-location: /home/nr/.ghc-snapshots/9.2.2/stage1/bin/haddock
+  ghc-location: /home/nr/.ghc-snapshots/current/stage1/bin/ghc
+  haddock-location: /home/nr/.ghc-snapshots/current/stage1/bin/haddock
