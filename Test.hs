@@ -10,6 +10,10 @@ import Data.Kind
 import GHC.Cmm.Expr
 import GHC.Types.Unique
 
+-- | A value of type `W pre post` represents WebAssembly code that
+-- expects the WebAssembly evaluation stack in state `pre` and leaves
+-- it in state `post`.
+
 data W :: [Type] -> [Type] -> Type where
 
   Seq :: forall pre mid post . W pre mid -> W mid post -> W pre post
@@ -19,14 +23,14 @@ data W :: [Type] -> [Type] -> Type where
   Addi :: W (Int ': Int ': stack) (Int ': stack)
   LocalVar :: VarIndex -> W stack (ty ': stack)
 
+(<>) :: forall pre mid post . W pre mid -> W mid post -> W pre post
+(<>) = Seq
 
 type VarIndex = Int
 index :: Unique -> VarIndex
 index = error "unimp; needs a context"
 
 
-(<>) :: forall pre mid post . W pre mid -> W mid post -> W pre post
-(<>) = Seq
 
 translate :: CmmExpr -> W stack (Int ': stack)
 translate (CmmLit v) = I (asInt v)
