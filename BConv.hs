@@ -46,6 +46,9 @@ instance Show SM where
 
 main :: IO ()
 main =  do
+    putStrLn "newtype Backend = Named BackendName"
+    putStrLn ""
+
     reify "backendDescription" backendDescription "String"
     reify "backendWritesFiles" backendWritesFiles "Bool"
     reify "backendPipelineOutput" backendPipelineOutput "PipelineOutput"
