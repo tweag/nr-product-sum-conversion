@@ -30,6 +30,8 @@ end
 
 local doctab = { } -- function name |--> lines
 
+local exports = { }
+
 local function capture_before(fname, i)
   local lines = { }
   repeat
@@ -63,6 +65,7 @@ local missing = { '-- | DOCUMENTATION FOR THIS FUNCTION IS MISSING' }
 for code in io.lines() do
   local fname = code:match '^(%w+) ::'
   if fname then
+    table.insert(exports, fname)
     local doc = doctab[fname] or missing
     for _, d in ipairs(doc) do
       io.stdout:write(d, '\n')
@@ -71,3 +74,6 @@ for code in io.lines() do
   io.stdout:write(code, '\n')
 end
 
+for _, e in ipairs(exports) do
+  io.stdout:write('   , ', e, '\n')
+end
