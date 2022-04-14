@@ -1,7 +1,13 @@
 #!/usr/bin/env lua5.1
 
 local function shift_left(lines)
-  table.insert(lines, 1, '-- NOT SHIFTED LEFT YET')
+  local padding = math.huge
+  for _, l in ipairs(lines) do
+    padding = math.min(padding, #(l:match('^%s*')))
+  end
+  for i = 1, #lines do
+    lines[i] = lines[i]:sub(padding+1)
+  end
 end
 
 local typefile = '/home/nr/asterius/ghc/compiler/GHC/Driver/Backend/Types.hs'
