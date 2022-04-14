@@ -1,7 +1,17 @@
+{-# LANGUAGE StandaloneDeriving #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
+
 module Main where
 
 import GHC.Driver.Backend
 import GHC.Utils.Error
+
+deriving instance Show DefunctionalizedAssemblerProg
+deriving instance Show DefunctionalizedAssemblerInfoGetter
+deriving instance Show DefunctionalizedCDefs
+deriving instance Show DefunctionalizedCodeOutput
+deriving instance Show DefunctionalizedPostHscPipeline
+
 
 preReify :: Show a => [(String, Backend)] -> String -> (Backend -> a) -> String -> IO ()
 reify :: Show a => String -> (Backend -> a) -> String -> IO ()
