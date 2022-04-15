@@ -71,27 +71,11 @@ expr (CmmReg (CmmLocal (LocalReg x ty))) k =
       k WInt $ (LocalVar (index x) :: forall stack . W stack (Int ': stack))
 expr e@(CmmMachOp (MO_Add w) [e1, e2]) k =
     as32 "add" w $
-    expr @stack e1 $ \(t1 :: WTy t1) w1 -> expr @(t1 ': stack) e2 $ \t2 w2 ->
-      case (t1, t2) of
-        (WInt, WInt) -> k WInt $ w1 <> w2 <> Addi
-        _ -> typeError e
-
-expr e@(CmmMachOp (MO_Add w) [e1, e2]) k =
-    as32 "add" w $
-    expr @stack e1 $ t1 w1 ->
-        case t1 of Wint -> expr @(Wint ': stack) e2 $ \t2 w2 ->
-                              case t2 of Wint -> k Wint $ w1 <> w2 <> Addi
-                       
-                            
-                       
-expr @(t1 ': stack) e2 $ \t2 w2 ->
-      case (t1, t2) of
-        (WInt, WInt) -> k WInt $ w1 <> w2 <> Addi
-        _ -> typeError e
-
---expr (CmmLoad e ty _) k =
---    as32 "variable" (typeWidth ty) $
---    if isFloatType ty then
+    expr e1 $ \(t1 :: WTy t1) (w1 :: W stack (t1 ': stack)) ->
+        expr e2 $ \(t2 :: WTy t2) (w2 :: W (t1 ': stack) (t2 ': t1 ': stack)) ->
+          case (t1, t2) of
+            (WInt, WInt) -> k WInt $ w1 <> w2 <> Addi
+            _ -> typeError e
 expr _ _ = error "unimp"
 
 
