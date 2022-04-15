@@ -19,7 +19,7 @@ import GHC.Types.Unique
 
 data W :: [Type] -> [Type] -> Type where
 
-  Seq :: forall pre mid post . W pre mid -> W mid post -> W pre post
+  Seq :: W pre mid -> W mid post -> W pre post
 
   I :: Int -> W stack (Int ': stack)
   F :: Float -> W stack (Float ': stack)
@@ -52,13 +52,14 @@ as32 :: String -> Width -> a -> a
 as32 _ W32 = id
 as32 what w = error $ what ++ " width " ++ show w ++ " is not supported in wasm"
 
+-- codes for, roughly: `CmmLit -> exists t . W stack (t ': stack)`
 lit :: CmmLit -> (forall t . WTy t -> W stack (t ': stack) -> answer) -> answer
 lit (CmmInt   n w) k = as32 "integer" w $ k WInt $ I $ fromIntegral n
 lit (CmmFloat r w) k = as32 "float"   w $ k WFloat $ F $ fromRational r
 lit _ _ = error "unimp"
 
-typeError :: CmmExpr -> a
-typeError _ = error "type error in Cmm expression"
+typeError :: String -> CmmExpr -> a
+typeError _ _ = error "type error in Cmm expression"
 
 expr :: forall stack answer .
         CmmExpr -> (forall t . WTy t -> W stack (t ': stack) -> answer) -> answer
@@ -66,18 +67,22 @@ expr (CmmLit v) k = lit v k
 expr (CmmReg (CmmLocal (LocalReg x ty))) k =
   as32 "local register" (typeWidth ty) $
   if isFloatType ty then
-      k WFloat $ (LocalVar (index x) :: forall stack . W stack (Float ': stack))
+      k WFloat $ LocalVar (index x)
   else
-      k WInt $ (LocalVar (index x) :: forall stack . W stack (Int ': stack))
-expr e@(CmmMachOp (MO_Add w) [e1, e2]) k =
+      k WInt $ LocalVar (index x)
+expr (CmmMachOp (MO_Add w) [e1, e2]) k =
     as32 "add" w $
-    expr e1 $ \(t1 :: WTy t1) (w1 :: W stack (t1 ': stack)) ->
-        expr e2 $ \(t2 :: WTy t2) (w2 :: W (t1 ': stack) (t2 ': t1 ': stack)) ->
-          case (t1, t2) of
-            (WInt, WInt) -> k WInt $ w1 <> w2 <> Addi
-            _ -> typeError e
+    iexpr e1 $ \w1 ->
+        iexpr e2 $ \w2 ->
+            k WInt $ w1 <> w2 <> Addi
+
 expr _ _ = error "unimp"
 
+iexpr :: forall stack answer . CmmExpr -> (W stack (Int ': stack) -> answer) -> answer
+iexpr e k = expr e k'
+  where k' :: forall t . WTy t -> W stack (t ': stack) -> answer
+        k' WInt w = k w
+        k' _ _ = typeError "expected integer expression but got" e
 
 
 -- a Wasm value type
