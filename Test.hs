@@ -6,6 +6,7 @@ module Test where
 import Prelude hiding ((<>))
 
 import Data.Kind
+import Data.Type.Equality
 
 import GHC.Cmm.Expr
 import GHC.Types.Unique
@@ -85,14 +86,19 @@ cps (CmmReg (CmmLocal (LocalReg x ty))) k =
 cps e@(CmmMachOp (MO_Add w) [e1, e2]) k =
     as32 "add" w $
     cps e1 $ \t1 w1 -> cps e2 $ \t2 w2 ->
-      case (t1, t2) of
-        (WInt, WInt) -> k WInt $ w1 <> w2 <> Addi
+      -- type of w1 = W stack  (t1 ': stack)
+      -- type of w2 = W stack1 (t2 ': stack1)
+      -- how to force stack1 :~= (t1 ': stack) ??
+      case (testEquality WInt t1, testEquality WInt t2) of
+        (Just Refl, Just Refl) -> k WInt $ w1 <> w2 <> Addi
         _ -> typeError e
 
 --cps (CmmLoad e ty _) k =
 --    as32 "variable" (typeWidth ty) $
 --    if isFloatType ty then
 cps _ _ = error "unimp"
+
+
 
 -- a Wasm value type
 data Ty = TInt
@@ -105,3 +111,9 @@ data WTy :: Type -> Type where
   WFloat  :: WTy Float
 
 deriving instance Show (WTy ty)
+
+
+instance TestEquality WTy where
+  testEquality WInt WInt     = Just Refl
+  testEquality WFloat WFloat = Just Refl
+  testEquality _ _ = Nothing
