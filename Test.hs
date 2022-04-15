@@ -1,5 +1,7 @@
 {-# LANGUAGE DataKinds, GADTs, RankNTypes, TypeOperators, KindSignatures #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Test where
 
@@ -44,30 +46,13 @@ asInt :: CmmLit -> Int
 asInt (CmmInt n _) = fromIntegral n
 asInt _ = error "not an integer literal"
 
+----------------------------------------------------------------
 
 as32 :: String -> Width -> a -> a
 as32 _ W32 = id
 as32 what w = error $ what ++ " width " ++ show w ++ " is not supported in wasm"
 
-oldlit :: CmmLit -> (forall pre post . W pre post -> answer) -> answer
-oldlit (CmmInt   n w) k = as32 "integer" w $ k $ I $ fromIntegral n
-oldlit (CmmFloat r w) k = as32 "float"   w $ k $ F $ fromRational r
-oldlit _ _ = error "unimp"
-
-badcps :: CmmExpr -> (forall pre post . W pre post -> answer) -> answer
-badcps (CmmLit v) k = oldlit v k
-badcps (CmmReg (CmmLocal (LocalReg x ty))) k =
-  as32 "local register" (typeWidth ty) $
-  if isFloatType ty then
-      k $ (LocalVar (index x) :: forall stack . W stack (Float ': stack))
-  else
-      k $ (LocalVar (index x) :: forall stack . W stack (Int ': stack))
-badcps (CmmMachOp (MO_Add w) [e1, e2]) k =
-    as32 "add" w $
-    badcps e1 $ \w1 -> badcps e2 $ \w2 -> k $ undefined w1 <> undefined w2 <> Addi
-badcps _ _ = error "unimp"
-
-lit :: CmmLit -> (forall t stack . WTy t -> W stack (t ': stack) -> answer) -> answer
+lit :: CmmLit -> (forall t . WTy t -> W stack (t ': stack) -> answer) -> answer
 lit (CmmInt   n w) k = as32 "integer" w $ k WInt $ I $ fromIntegral n
 lit (CmmFloat r w) k = as32 "float"   w $ k WFloat $ F $ fromRational r
 lit _ _ = error "unimp"
@@ -75,28 +60,39 @@ lit _ _ = error "unimp"
 typeError :: CmmExpr -> a
 typeError _ = error "type error in Cmm expression"
 
-cps :: CmmExpr -> (forall stack t . WTy t -> W stack (t ': stack) -> answer) -> answer
-cps (CmmLit v) k = lit v k
-cps (CmmReg (CmmLocal (LocalReg x ty))) k =
+expr :: forall stack answer .
+        CmmExpr -> (forall t . WTy t -> W stack (t ': stack) -> answer) -> answer
+expr (CmmLit v) k = lit v k
+expr (CmmReg (CmmLocal (LocalReg x ty))) k =
   as32 "local register" (typeWidth ty) $
   if isFloatType ty then
       k WFloat $ (LocalVar (index x) :: forall stack . W stack (Float ': stack))
   else
       k WInt $ (LocalVar (index x) :: forall stack . W stack (Int ': stack))
-cps e@(CmmMachOp (MO_Add w) [e1, e2]) k =
+expr e@(CmmMachOp (MO_Add w) [e1, e2]) k =
     as32 "add" w $
-    cps e1 $ \t1 w1 -> cps e2 $ \t2 w2 ->
-      -- type of w1 = W stack  (t1 ': stack)
-      -- type of w2 = W stack1 (t2 ': stack1)
-      -- how to force stack1 :~= (t1 ': stack) ??
-      case (testEquality WInt t1, testEquality WInt t2) of
-        (Just Refl, Just Refl) -> k WInt $ w1 <> w2 <> Addi
+    expr @stack e1 $ \(t1 :: WTy t1) w1 -> expr @(t1 ': stack) e2 $ \t2 w2 ->
+      case (t1, t2) of
+        (WInt, WInt) -> k WInt $ w1 <> w2 <> Addi
         _ -> typeError e
 
---cps (CmmLoad e ty _) k =
+expr e@(CmmMachOp (MO_Add w) [e1, e2]) k =
+    as32 "add" w $
+    expr @stack e1 $ t1 w1 ->
+        case t1 of Wint -> expr @(Wint ': stack) e2 $ \t2 w2 ->
+                              case t2 of Wint -> k Wint $ w1 <> w2 <> Addi
+                       
+                            
+                       
+expr @(t1 ': stack) e2 $ \t2 w2 ->
+      case (t1, t2) of
+        (WInt, WInt) -> k WInt $ w1 <> w2 <> Addi
+        _ -> typeError e
+
+--expr (CmmLoad e ty _) k =
 --    as32 "variable" (typeWidth ty) $
 --    if isFloatType ty then
-cps _ _ = error "unimp"
+expr _ _ = error "unimp"
 
 
 
@@ -117,3 +113,22 @@ instance TestEquality WTy where
   testEquality WInt WInt     = Just Refl
   testEquality WFloat WFloat = Just Refl
   testEquality _ _ = Nothing
+
+
+oldlit :: CmmLit -> (forall pre post . W pre post -> answer) -> answer
+oldlit (CmmInt   n w) k = as32 "integer" w $ k $ I $ fromIntegral n
+oldlit (CmmFloat r w) k = as32 "float"   w $ k $ F $ fromRational r
+oldlit _ _ = error "unimp"
+
+badcps :: CmmExpr -> (forall pre post . W pre post -> answer) -> answer
+badcps (CmmLit v) k = oldlit v k
+badcps (CmmReg (CmmLocal (LocalReg x ty))) k =
+  as32 "local register" (typeWidth ty) $
+  if isFloatType ty then
+      k $ (LocalVar (index x) :: forall stack . W stack (Float ': stack))
+  else
+      k $ (LocalVar (index x) :: forall stack . W stack (Int ': stack))
+badcps (CmmMachOp (MO_Add w) [e1, e2]) k =
+    as32 "add" w $
+    badcps e1 $ \w1 -> badcps e2 $ \w2 -> k $ undefined w1 <> undefined w2 <> Addi
+badcps _ _ = error "unimp"
